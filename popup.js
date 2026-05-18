@@ -3,6 +3,7 @@ const stopBtn = document.getElementById('stop');
 const copyBtn = document.getElementById('copy');
 const copyLabel = document.getElementById('copy-label');
 const exportBtn = document.getElementById('export');
+const openEditorBtn = document.getElementById('open-editor');
 const statusEl = document.getElementById('status');
 const stateLabel = document.getElementById('state-label');
 const countEl = document.getElementById('count');
@@ -213,6 +214,10 @@ exportBtn.addEventListener('click', async () => {
   }, () => {
     setTimeout(() => URL.revokeObjectURL(url), 5_000);
   });
+});
+
+openEditorBtn.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('editor/editor.html') });
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {

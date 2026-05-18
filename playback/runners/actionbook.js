@@ -130,11 +130,20 @@ function openSession(navStep, opts) {
   ab(['browser', 'open', navStep.fields.url], opts);
 }
 
+function sleepSeconds(seconds) {
+  spawnSync('sleep', [String(seconds)], { stdio: 'ignore' });
+}
+
 /**
  * @param {{ seq: number, type: string, fields: object }} step
  * @param {{ env?: object, verbose?: boolean }} [opts]
  */
 function runStep(step, opts = {}) {
+  if (step.fields && step.fields.disabled === true) {
+    if (opts.verbose !== false) console.log('  ⊘ disabled, skipping');
+    return;
+  }
+
   switch (step.type) {
     case 'navigate':
       ab(buildNavigateArgs(step), opts);
@@ -152,6 +161,19 @@ function runStep(step, opts = {}) {
     case 'submit':
       ab(['browser', 'eval', buildSubmitExpr(step)], opts);
       return;
+    case 'wait': {
+      const ms = Number(step.fields.duration_ms) || 0;
+      if (opts.verbose !== false) console.log(`  ⏱ wait ${ms}ms`);
+      sleepSeconds(ms / 1000);
+      return;
+    }
+    case 'memo': {
+      if (opts.verbose !== false) {
+        const note = step.fields.note || '';
+        console.log(`  📝 memo: ${note}`);
+      }
+      return;
+    }
     default:
       console.warn(`  ! unknown event type "${step.type}", skipping`);
   }

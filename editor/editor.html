@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>Macrobook · Editor</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --surface: #fff;
+      --border: #e5e7eb;
+      --border-strong: #d1d5db;
+      --text: #111;
+      --text-soft: #555;
+      --muted: #9ca3af;
+      --accent: #3b82f6;
+      --danger: #ef4444;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --teal: #14b8a6;
+      --row-navigate: #6b7280;
+      --row-click:    #ef4444;
+      --row-input:    #3b82f6;
+      --row-submit:   #f59e0b;
+      --row-wait:     #eab308;
+      --row-memo:     #8b5cf6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "Apple SD Gothic Neo", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    header h1 {
+      font-size: 14px;
+      margin: 0 8px 0 0;
+      font-weight: 600;
+    }
+    header .meta {
+      font-size: 12px;
+      color: var(--text-soft);
+      margin-right: auto;
+    }
+    .meta .count { font-weight: 600; color: var(--text); }
+
+    button.tool {
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-soft);
+    }
+    button.tool:hover:not(:disabled) {
+      background: #f3f4f6;
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+    button.tool:disabled { opacity: 0.35; cursor: not-allowed; }
+    button.primary {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+    button.primary:hover:not(:disabled) { background: #2563eb; color: white; }
+    button.danger { color: var(--danger); }
+    button.danger:hover:not(:disabled) { background: #fef2f2; }
+
+    .add-menu { position: relative; }
+    .add-menu .options {
+      position: absolute;
+      top: 110%;
+      left: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      display: none;
+      min-width: 140px;
+    }
+    .add-menu.open .options { display: block; }
+    .add-menu .options button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 7px 12px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .add-menu .options button:hover { background: #f3f4f6; }
+
+    main {
+      padding: 14px 16px 100px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 22px 36px 84px 1fr 110px;
+      gap: 8px;
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .row:hover { background: #f9fafb; }
+    .row.dragging { opacity: 0.5; }
+    .row.drop-target-before { box-shadow: 0 -2px 0 var(--accent); }
+    .row.drop-target-after  { box-shadow: 0  2px 0 var(--accent); }
+    .row.focused { border-color: var(--accent); background: #eff6ff; }
+    .row.disabled .summary, .row.disabled .seq, .row.disabled .type {
+      opacity: 0.4;
+      text-decoration: line-through;
+    }
+
+    .row .handle {
+      cursor: grab;
+      color: var(--muted);
+      font-size: 14px;
+      user-select: none;
+      text-align: center;
+    }
+    .row .handle:active { cursor: grabbing; }
+
+    .row .seq {
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+      font-size: 11px;
+      text-align: right;
+    }
+
+    .row .type {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      color: white;
+      text-align: center;
+    }
+    .row .type[data-type="navigate"] { background: var(--row-navigate); }
+    .row .type[data-type="click"]    { background: var(--row-click); }
+    .row .type[data-type="input"]    { background: var(--row-input); }
+    .row .type[data-type="submit"]   { background: var(--row-submit); }
+    .row .type[data-type="wait"]     { background: var(--row-wait); color: #422006; }
+    .row .type[data-type="memo"]     { background: var(--row-memo); }
+
+    .row .summary {
+      font-size: 13px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .row .summary input {
+      width: 100%;
+      border: 1px solid var(--accent);
+      background: white;
+      padding: 3px 5px;
+      border-radius: 3px;
+      font: inherit;
+      color: inherit;
+    }
+
+    .row .actions {
+      display: flex;
+      gap: 4px;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    .row .actions input[type="checkbox"] {
+      margin: 0 4px 0 0;
+      cursor: pointer;
+    }
+    .row .actions button {
+      padding: 3px 6px;
+      border: 1px solid transparent;
+      background: none;
+      border-radius: 3px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .row .actions button:hover {
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+    .row .actions .delete:hover { color: var(--danger); border-color: var(--danger); }
+
+    .body {
+      grid-column: 3 / -1;
+      margin-top: 6px;
+      padding: 8px 10px;
+      background: #f9fafb;
+      border-radius: 4px;
+      font-size: 12px;
+      display: none;
+    }
+    .row.expanded .body { display: block; }
+
+    .body-grid {
+      display: grid;
+      grid-template-columns: 90px 1fr;
+      gap: 4px 10px;
+      align-items: center;
+    }
+    .body-grid label {
+      color: var(--text-soft);
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .body-grid input, .body-grid textarea {
+      border: 1px solid var(--border);
+      padding: 3px 6px;
+      border-radius: 3px;
+      font: inherit;
+      width: 100%;
+      background: white;
+    }
+    .body-grid input:focus, .body-grid textarea:focus {
+      border-color: var(--accent);
+      outline: none;
+    }
+
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 80px 20px;
+      font-size: 13px;
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      background: var(--text);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 16px;
+      font-size: 11px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+    .hint.visible { opacity: 0.85; }
+
+    .shortcuts {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 10px;
+      color: var(--text-soft);
+      max-width: 360px;
+      line-height: 1.5;
+    }
+    .shortcuts kbd {
+      display: inline-block;
+      padding: 1px 4px;
+      background: #f3f4f6;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-family: ui-monospace, monospace;
+      font-size: 9px;
+      margin: 0 1px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Macrobook · Editor</h1>
+    <span class="meta"><span class="count" id="count">0</span> events</span>
+
+    <button class="tool" id="undo" disabled title="Undo (Cmd/Ctrl+Z)">↶ Undo</button>
+    <button class="tool" id="redo" disabled title="Redo (Cmd/Ctrl+Shift+Z)">↷ Redo</button>
+
+    <div class="add-menu" id="add-menu">
+      <button class="tool" id="add-trigger">+ 행 추가 ▾</button>
+      <div class="options">
+        <button data-template="wait">⏱ wait (대기)</button>
+        <button data-template="memo">📝 memo (메모)</button>
+        <button data-template="click">🖱 click (수동)</button>
+      </div>
+    </div>
+
+    <button class="tool primary" id="copy">📋 복사</button>
+    <button class="tool" id="export">⬇ 출력</button>
+  </header>
+
+  <main>
+    <div id="rows"></div>
+    <div class="empty" id="empty" style="display: none;">
+      녹화된 이벤트가 없어요. 확장 아이콘 → [녹화]로 시작.
+    </div>
+  </main>
+
+  <div class="shortcuts">
+    <kbd>j</kbd><kbd>k</kbd> 이동 · <kbd>e</kbd> 펼치기 ·
+    <kbd>x</kbd> 삭제 · <kbd>d</kbd> 복제 ·
+    <kbd>⌘↑↓</kbd> 순서 이동 · <kbd>Space</kbd> on/off ·
+    <kbd>⌘Z</kbd> Undo
+  </div>
+
+  <div class="hint" id="hint"></div>
+
+  <script src="state.js"></script>
+  <script src="history.js"></script>
+  <script src="editor.js"></script>
+</body>
+</html>
