@@ -1,0 +1,22 @@
+# Macro recorder export — sample for playback testing
+# Recorded: 2026-05-14T00:00:00.000Z
+# Events: 3
+# Format: each event is `[NNN] type "summary"` + indented `key: "JSON-escaped"` body.
+# Editors fold by indentation. Selector priority for AI replay: text > aria > id > name > css.
+
+[001] navigate https://example.com
+    url: "https://example.com"
+
+[002] click "More information..."
+    target: "More information..."
+    text: "More information..."
+    tag: "a"
+    role: "link"
+    url: "https://example.com"
+
+[003] click "IANA"
+    target: "IANA"
+    text: "IANA"
+    tag: "a"
+    role: "link"
+    url: "https://www.iana.org/help/example-domains"
