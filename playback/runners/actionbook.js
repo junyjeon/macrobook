@@ -139,7 +139,8 @@ function sleepSeconds(seconds) {
  * @param {{ env?: object, verbose?: boolean }} [opts]
  */
 function runStep(step, opts = {}) {
-  if (step.fields && step.fields.disabled === true) {
+  const isDisabled = (step.fields && step.fields.disabled === true) || step.disabled === true;
+  if (isDisabled) {
     if (opts.verbose !== false) console.log('  ⊘ disabled, skipping');
     return;
   }

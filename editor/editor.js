@@ -15,7 +15,9 @@
   const expanded = new Set();
   let saveTimer = null;
   let dragId = null;
-  let savingOurOwn = false;
+  // Counter (not boolean) so rapid debounced saves don't release the suppression
+  // while a later save's onChanged is still in flight.
+  let savingOurOwn = 0;
 
   // --- DOM refs -------------------------------------------------------------
 
@@ -42,9 +44,12 @@
   function saveDebounced() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      savingOurOwn = true;
+      savingOurOwn += 1;
       chrome.storage.local.set({ events: S.renumber(getState()) }, () => {
-        savingOurOwn = false;
+        savingOurOwn = Math.max(0, savingOurOwn - 1);
+        if (chrome.runtime.lastError) {
+          flash('⚠ 저장 실패: ' + chrome.runtime.lastError.message);
+        }
       });
     }, 200);
   }
@@ -175,18 +180,25 @@
     const body = el('div', { className: 'body' });
     const grid = el('div', { className: 'body-grid' });
 
-    const addField = (label, key, value, kind = 'input') => {
+    const addField = (label, key, value, kind = 'input', readOnly = false) => {
       grid.appendChild(el('label', { textContent: label }));
       const input = document.createElement(kind === 'textarea' ? 'textarea' : 'input');
       input.value = value == null ? '' : String(value);
-      input.addEventListener('blur', () => updateField(ev.id, key, input.value));
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && kind !== 'textarea') input.blur();
-        if (e.key === 'Escape') {
-          input.value = value == null ? '' : String(value);
-          input.blur();
-        }
-      });
+      if (readOnly) {
+        input.readOnly = true;
+        input.title = '보안 정보 — 편집 불가';
+        input.style.cursor = 'not-allowed';
+        input.style.background = '#f3f4f6';
+      } else {
+        input.addEventListener('blur', () => updateField(ev.id, key, input.value));
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && kind !== 'textarea') input.blur();
+          if (e.key === 'Escape') {
+            input.value = value == null ? '' : String(value);
+            input.blur();
+          }
+        });
+      }
       input.addEventListener('click', (e) => e.stopPropagation());
       grid.appendChild(input);
     };
@@ -207,7 +219,7 @@
       addField('tag', 'selector.tag', sel.tag);
       addField('role', 'selector.role', sel.role);
       if (ev.type === 'input') {
-        addField('value', 'value', ev.sensitive ? '[REDACTED]' : ev.value);
+        addField('value', 'value', ev.sensitive ? '[REDACTED]' : ev.value, 'input', !!ev.sensitive);
         addField('input_type', 'inputType', ev.inputType);
       }
       addField('url', 'url', ev.url);
@@ -550,10 +562,19 @@
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !changes.events) return;
-    if (savingOurOwn) return;
+    if (savingOurOwn > 0) return;
     const incoming = S.hydrate(changes.events.newValue || []);
+    const hadPast = history.canUndo();
     history = H.createHistory(incoming);
     render();
+    if (hadPast) flash('🔄 외부 변경 동기화 · Undo 이력 초기화');
+  });
+
+  // --- cleanup on unload ---------------------------------------------------
+
+  window.addEventListener('beforeunload', () => {
+    clearTimeout(saveTimer);
+    clearTimeout(flash._t);
   });
 
   // --- bootstrap ------------------------------------------------------------
