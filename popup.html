@@ -46,8 +46,8 @@
 
     .actions {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 5px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
     }
     .action-btn {
       display: flex;
@@ -55,7 +55,7 @@
       align-items: center;
       justify-content: center;
       gap: 5px;
-      padding: 10px 2px;
+      padding: 12px 4px;
       border: 1px solid #e5e7eb;
       border-radius: 8px;
       background: #fff;
@@ -78,14 +78,14 @@
       cursor: not-allowed;
     }
     .action-btn svg {
-      width: 20px;
-      height: 20px;
+      width: 22px;
+      height: 22px;
       display: block;
     }
     .action-btn.record { color: #ef4444; }
-    .action-btn.stop   { color: #374151; }
+    .action-btn.stop   { color: #b91c1c; }
+    .action-btn.clear  { color: #f59e0b; }
     .action-btn.copy   { color: #14b8a6; }
-    .action-btn.export { color: #3b82f6; }
 
     .action-btn.copy.copied {
       background: #ccfbf1;
@@ -93,24 +93,35 @@
       color: #0f766e;
     }
 
-    .open-editor {
-      width: 100%;
-      margin-top: 6px;
-      padding: 8px;
-      border: 1px solid #e5e7eb;
-      border-radius: 6px;
-      background: #fff;
-      color: #374151;
+    .secondary-actions {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #f3f4f6;
+    }
+    .secondary {
+      background: none;
+      border: none;
+      color: #6b7280;
+      font-size: 11px;
       cursor: pointer;
-      font-size: 12px;
-      font-weight: 500;
-      transition: background 0.15s, border-color 0.15s;
+      padding: 4px 10px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: inherit;
     }
-    .open-editor:hover:not(:disabled) {
+    .secondary:hover:not(:disabled) {
+      color: #111;
       background: #f3f4f6;
-      border-color: #d1d5db;
     }
-    .open-editor:disabled { opacity: 0.35; cursor: not-allowed; }
+    .secondary:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -122,18 +133,21 @@
   </div>
 
   <div class="actions">
-    <button id="record" class="action-btn record" title="녹화 시작">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
+    <button id="record-toggle" class="action-btn record" title="녹화 시작">
+      <svg id="record-icon" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="7" fill="currentColor"/>
       </svg>
-      <span>녹화</span>
+      <span id="record-label">녹화</span>
     </button>
 
-    <button id="stop" class="action-btn stop" title="녹화 정지" disabled>
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>
+    <button id="clear" class="action-btn clear" title="이벤트 초기화" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 6h18"/>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
       </svg>
-      <span>정지</span>
+      <span>초기화</span>
     </button>
 
     <button id="copy" class="action-btn copy" title="클립보드에 복사" disabled>
@@ -144,21 +158,26 @@
       </svg>
       <span id="copy-label">복사</span>
     </button>
-
-    <button id="export" class="action-btn export" title="텍스트 파일로 출력" disabled>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 4v11"/>
-        <path d="M7 10l5 5 5-5"/>
-        <path d="M5 20h14"/>
-      </svg>
-      <span>출력</span>
-    </button>
   </div>
 
-  <button id="open-editor" class="open-editor" title="새 탭에서 편집기 열기">
-    📝 전체 편집
-  </button>
+  <div class="secondary-actions">
+    <button id="export" class="secondary" title="텍스트 파일로 다운로드" disabled>
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+           style="width:11px;height:11px;">
+        <path d="M7 2v8"/><path d="M3.5 7l3.5 3.5L10.5 7"/><path d="M2 12h10"/>
+      </svg>
+      출력
+    </button>
+    <button id="open-editor" class="secondary" title="새 탭에서 편집기 열기">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+           style="width:11px;height:11px;">
+        <path d="M10 1l3 3-8.5 8.5H1.5V9.5L10 1z"/>
+      </svg>
+      전체 편집
+    </button>
+  </div>
 
   <script src="popup.js"></script>
 </body>

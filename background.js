@@ -49,8 +49,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.action === 'start') {
+    // Note: does NOT clear events — that's now the explicit `clearEvents`
+    // action. Allows the user to chain recording sessions (record → stop →
+    // record again to add more) without losing prior captures.
     enqueue(async () => {
-      await chrome.storage.local.set({ [STATE_KEY]: true, [EVENTS_KEY]: [] });
+      await chrome.storage.local.set({ [STATE_KEY]: true });
+    }).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  if (msg.action === 'clearEvents') {
+    enqueue(async () => {
+      await chrome.storage.local.set({ [EVENTS_KEY]: [] });
     }).then(() => sendResponse({ ok: true }));
     return true;
   }

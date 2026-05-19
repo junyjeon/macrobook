@@ -1,5 +1,7 @@
-const recordBtn = document.getElementById('record');
-const stopBtn = document.getElementById('stop');
+const recordToggleBtn = document.getElementById('record-toggle');
+const recordIcon = document.getElementById('record-icon');
+const recordLabel = document.getElementById('record-label');
+const clearBtn = document.getElementById('clear');
 const copyBtn = document.getElementById('copy');
 const copyLabel = document.getElementById('copy-label');
 const exportBtn = document.getElementById('export');
@@ -8,10 +10,13 @@ const statusEl = document.getElementById('status');
 const stateLabel = document.getElementById('state-label');
 const countEl = document.getElementById('count');
 
-function ask(action) {
+const RECORD_ICON_SVG = '<circle cx="12" cy="12" r="7" fill="currentColor"/>';
+const STOP_ICON_SVG   = '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>';
+
+function ask(action, extra = {}) {
   return new Promise((resolve) => {
     try {
-      chrome.runtime.sendMessage({ action }, (response) => {
+      chrome.runtime.sendMessage({ action, ...extra }, (response) => {
         void chrome.runtime.lastError;
         resolve(response);
       });
@@ -26,8 +31,19 @@ async function refresh() {
   const recording = !!state?.isRecording;
   const events = state?.events || [];
 
-  recordBtn.disabled = recording;
-  stopBtn.disabled = !recording;
+  if (recording) {
+    recordToggleBtn.className = 'action-btn stop';
+    recordToggleBtn.title = '녹화 정지';
+    recordIcon.innerHTML = STOP_ICON_SVG;
+    recordLabel.textContent = '정지';
+  } else {
+    recordToggleBtn.className = 'action-btn record';
+    recordToggleBtn.title = '녹화 시작';
+    recordIcon.innerHTML = RECORD_ICON_SVG;
+    recordLabel.textContent = '녹화';
+  }
+
+  clearBtn.disabled = events.length === 0;
   copyBtn.disabled = events.length === 0;
   exportBtn.disabled = events.length === 0;
 
@@ -36,18 +52,10 @@ async function refresh() {
   countEl.textContent = events.length;
 }
 
-// --- formatter (foldable multi-line) ----------------------------------------
+// --- text formatting --------------------------------------------------------
 
-function escapeStr(v) {
+function asString(v) {
   return JSON.stringify(v == null ? '' : String(v));
-}
-
-function field(key, value) {
-  if (value == null || value === '') return null;
-  if (typeof value === 'boolean' || typeof value === 'number') {
-    return `    ${key}: ${value}`;
-  }
-  return `    ${key}: ${escapeStr(value)}`;
 }
 
 function strongestTarget(selector) {
@@ -62,27 +70,26 @@ function strongestTarget(selector) {
 
 function pickSummary(event) {
   if (event.type === 'navigate') return event.url || null;
-
+  if (event.type === 'wait') return `${event.duration_ms || 0}ms`;
+  if (event.type === 'memo') return event.note || null;
   const sel = event.selector;
-
   if (event.type === 'input') {
-    const valueRepr = event.sensitive
-      ? '[REDACTED]'
-      : (event.value === undefined ? '' : escapeStr(event.value));
-    const targetRepr = sel?.name ? `[name="${sel.name}"]`
-                     : sel?.id ? `#${sel.id}`
-                     : sel?.text ? `"${sel.text}"`
-                     : '?';
-    return `${valueRepr} → ${targetRepr}`;
+    const v = event.sensitive ? '[REDACTED]' : (event.value === undefined ? '' : asString(event.value));
+    const t = sel?.name ? `[name="${sel.name}"]`
+            : sel?.id   ? `#${sel.id}`
+            : sel?.text ? `"${sel.text}"`
+            : '?';
+    return `${v} → ${t}`;
   }
-
   if (!sel) return null;
-  if (sel.text)      return sel.text;
-  if (sel.aria)      return sel.aria;
-  if (sel.labelText) return sel.labelText;
-  if (sel.id)        return `#${sel.id}`;
-  if (sel.name)      return `[name="${sel.name}"]`;
-  return null;
+  return sel.text || sel.aria || sel.labelText
+      || (sel.id ? `#${sel.id}` : sel.name ? `[name="${sel.name}"]` : null);
+}
+
+function bodyLine(key, value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'boolean' || typeof value === 'number') return `    ${key}: ${value}`;
+  return `    ${key}: ${asString(value)}`;
 }
 
 function formatEvent(event, index) {
@@ -92,49 +99,59 @@ function formatEvent(event, index) {
   let head;
   if (summary == null) {
     head = `[${seq}] ${event.type}`;
-  } else if (event.type === 'navigate' || event.type === 'input') {
+  } else if (event.type === 'navigate' || event.type === 'input' || event.type === 'wait') {
     head = `[${seq}] ${event.type} ${summary}`;
   } else {
-    head = `[${seq}] ${event.type} ${escapeStr(summary)}`;
+    head = `[${seq}] ${event.type} ${asString(summary)}`;
   }
 
   const lines = [head];
+  if (event.disabled) lines.push('    disabled: true');
 
   if (event.type === 'navigate') {
-    lines.push(field('url', event.url));
-    if (event.from) lines.push(field('from', event.from));
+    lines.push(bodyLine('url', event.url));
+    if (event.from) lines.push(bodyLine('from', event.from));
+    return lines.filter(Boolean).join('\n');
+  }
+
+  if (event.type === 'wait') {
+    lines.push(bodyLine('duration_ms', event.duration_ms));
+    return lines.filter(Boolean).join('\n');
+  }
+  if (event.type === 'memo') {
+    lines.push(bodyLine('note', event.note));
     return lines.filter(Boolean).join('\n');
   }
 
   const target = strongestTarget(event.selector);
-  if (target) lines.push(field('target', target));
+  if (target) lines.push(bodyLine('target', target));
 
   const sel = event.selector;
   if (sel) {
-    if (sel.text)      lines.push(field('text', sel.text));
-    if (sel.aria)      lines.push(field('aria', sel.aria));
-    if (sel.id)        lines.push(field('id', sel.id));
-    if (sel.name)      lines.push(field('name', sel.name));
-    if (sel.tag)       lines.push(field('tag', sel.tag));
-    if (sel.role)      lines.push(field('role', sel.role));
-    if (sel.type)      lines.push(field('type', sel.type));
-    if (sel.labelText) lines.push(field('label', sel.labelText));
+    if (sel.text)      lines.push(bodyLine('text', sel.text));
+    if (sel.aria)      lines.push(bodyLine('aria', sel.aria));
+    if (sel.id)        lines.push(bodyLine('id', sel.id));
+    if (sel.name)      lines.push(bodyLine('name', sel.name));
+    if (sel.tag)       lines.push(bodyLine('tag', sel.tag));
+    if (sel.role)      lines.push(bodyLine('role', sel.role));
+    if (sel.type)      lines.push(bodyLine('type', sel.type));
+    if (sel.labelText) lines.push(bodyLine('label', sel.labelText));
     if (sel.css) {
-      lines.push(field('css', sel.css));
+      lines.push(bodyLine('css', sel.css));
       lines.push('    target_confidence: low');
     }
   }
 
   if ('value' in event) {
     if (event.sensitive) {
-      lines.push(field('value', '[REDACTED]'));
+      lines.push(bodyLine('value', '[REDACTED]'));
       lines.push('    sensitive: true');
     } else {
-      lines.push(field('value', event.value));
+      lines.push(bodyLine('value', event.value));
     }
   }
-  if (event.inputType) lines.push(field('input_type', event.inputType));
-  lines.push(field('url', event.url));
+  if (event.inputType) lines.push(bodyLine('input_type', event.inputType));
+  lines.push(bodyLine('url', event.url));
 
   return lines.filter(Boolean).join('\n');
 }
@@ -159,13 +176,18 @@ function buildExportText(events) {
 
 // --- handlers ---------------------------------------------------------------
 
-recordBtn.addEventListener('click', async () => {
-  await ask('start');
+recordToggleBtn.addEventListener('click', async () => {
+  const state = await ask('getState');
+  await ask(state?.isRecording ? 'stop' : 'start');
   await refresh();
 });
 
-stopBtn.addEventListener('click', async () => {
-  await ask('stop');
+clearBtn.addEventListener('click', async () => {
+  const state = await ask('getState');
+  const n = (state?.events || []).length;
+  if (n === 0) return;
+  if (!confirm(`녹화된 ${n}개 이벤트를 모두 지울까요?\n이 작업은 되돌릴 수 없어요.`)) return;
+  await ask('clearEvents');
   await refresh();
 });
 

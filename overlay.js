@@ -133,9 +133,28 @@
       .action:disabled { opacity: 0.4; cursor: not-allowed; }
       .action.record { color: #ef4444; }
       .action.stop { color: #b91c1c; }
+      .action.clear { color: #f59e0b; }
       .action.copy { color: #14b8a6; }
       .action.copy.copied { background: #ccfbf1; border-color: #14b8a6; color: #0f766e; }
-      .action.edit { color: #3b82f6; }
+
+      .secondary-row {
+        display: flex;
+        justify-content: center;
+        gap: 4px;
+        padding: 4px 8px 8px;
+        border-bottom: 1px solid #f3f4f6;
+      }
+      .secondary {
+        background: none;
+        border: none;
+        color: #6b7280;
+        font-size: 10px;
+        cursor: pointer;
+        padding: 3px 8px;
+        border-radius: 3px;
+        font-family: inherit;
+      }
+      .secondary:hover { color: #111; background: #f3f4f6; }
 
       .events {
         flex: 1;
@@ -236,10 +255,13 @@
       </div>
 
       <div class="actions" id="actions">
-        <button class="action record" id="record" title="녹화 시작">⏺ 녹화</button>
-        <button class="action stop" id="stop" title="녹화 정지" disabled>⏸ 정지</button>
+        <button class="action record" id="record-toggle" title="녹화 시작">⏺ 녹화</button>
+        <button class="action clear" id="clear" title="이벤트 초기화" disabled>🗑 초기화</button>
         <button class="action copy" id="copy" title="클립보드 복사" disabled>📋 복사</button>
-        <button class="action edit" id="edit" title="편집기 열기" style="grid-column: span 3">✏ 전체 편집기 열기</button>
+      </div>
+
+      <div class="secondary-row" id="secondary">
+        <button class="secondary" id="edit" title="편집기 열기">✏ 편집기</button>
       </div>
 
       <div class="events" id="events"></div>
@@ -258,8 +280,9 @@
   const $count = shadow.getElementById('count');
   const $collapse = shadow.getElementById('collapse');
   const $actions = shadow.getElementById('actions');
-  const $record = shadow.getElementById('record');
-  const $stop = shadow.getElementById('stop');
+  const $secondary = shadow.getElementById('secondary');
+  const $recordToggle = shadow.getElementById('record-toggle');
+  const $clear = shadow.getElementById('clear');
   const $copy = shadow.getElementById('copy');
   const $edit = shadow.getElementById('edit');
   const $events = shadow.getElementById('events');
@@ -400,8 +423,18 @@
     $dot.classList.toggle('recording', isRecording);
     $stateLabel.textContent = isRecording ? '녹화 중' : (events.length ? '대기' : 'Macrobook');
     $count.textContent = `· ${events.length}`;
-    $record.disabled = isRecording;
-    $stop.disabled = !isRecording;
+
+    if (isRecording) {
+      $recordToggle.textContent = '⏸ 정지';
+      $recordToggle.className = 'action stop';
+      $recordToggle.title = '녹화 정지';
+    } else {
+      $recordToggle.textContent = '⏺ 녹화';
+      $recordToggle.className = 'action record';
+      $recordToggle.title = '녹화 시작';
+    }
+
+    $clear.disabled = events.length === 0;
     $copy.disabled = events.length === 0;
 
     $events.innerHTML = '';
@@ -457,8 +490,17 @@
 
   // ---------------------------------------------------------- actions ----
 
-  $record.addEventListener('click', () => send('start'));
-  $stop.addEventListener('click', () => send('stop'));
+  $recordToggle.addEventListener('click', () => {
+    send(isRecording ? 'stop' : 'start');
+  });
+
+  $clear.addEventListener('click', () => {
+    if (events.length === 0) return;
+    const ok = window.confirm(`녹화된 ${events.length}개 이벤트를 모두 지울까요?\n이 작업은 되돌릴 수 없어요.`);
+    if (!ok) return;
+    send('clearEvents');
+  });
+
   $edit.addEventListener('click', () => send('openEditor'));
 
   $copy.addEventListener('click', async () => {
@@ -475,13 +517,17 @@
 
   // ---------------------------------------------------------- collapse ---
 
-  $collapse.addEventListener('click', () => {
-    collapsed = !collapsed;
+  function applyCollapsed() {
     $widget.classList.toggle('collapsed', collapsed);
     $actions.style.display = collapsed ? 'none' : 'grid';
+    $secondary.style.display = collapsed ? 'none' : 'flex';
     $events.style.display = collapsed ? 'none' : 'block';
     $footer.style.display = collapsed ? 'none' : 'block';
     $collapse.textContent = collapsed ? '+' : '−';
+  }
+  $collapse.addEventListener('click', () => {
+    collapsed = !collapsed;
+    applyCollapsed();
     chrome.storage.local.set({ overlayCollapsed: collapsed });
   });
 
@@ -517,11 +563,7 @@
     events = r.events || [];
     if (r.overlayCollapsed) {
       collapsed = true;
-      $widget.classList.add('collapsed');
-      $actions.style.display = 'none';
-      $events.style.display = 'none';
-      $footer.style.display = 'none';
-      $collapse.textContent = '+';
+      applyCollapsed();
     }
     if (r.overlayPosition && r.overlayPosition.x != null) {
       host.style.left = r.overlayPosition.x + 'px';
