@@ -12,6 +12,30 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 /**
+ * Stable id per captured event so overlay/editor can target individual
+ * rows for delete without colliding on timestamp+type alone.
+ */
+function genId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'e_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+/**
+ * True when the event originated inside the overlay widget so we don't
+ * record our own UI clicks (composedPath crosses closed shadow roots,
+ * surfacing the host element with the data-macrobook attribute).
+ */
+function isOverlayEvent(e) {
+  const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+  for (const node of path) {
+    if (node && node.dataset && node.dataset.macrobook === 'overlay') return true;
+  }
+  return false;
+}
+
+/**
  * Fire-and-forget message to the service worker.
  * Content scripts in tabs that were open at the time the extension reloads
  * are stranded — `sendMessage` throws "Extension context invalidated".
@@ -278,6 +302,7 @@ function pushEvent(type, element, extras = {}) {
   safeSend({
     action: 'recordEvent',
     event: {
+      id: genId(),
       type,
       timestamp: Date.now(),
       url: location.href,
@@ -288,10 +313,12 @@ function pushEvent(type, element, extras = {}) {
 }
 
 document.addEventListener('click', (e) => {
+  if (isOverlayEvent(e)) return;
   pushEvent('click', semanticTarget(e.target));
 }, true);
 
 document.addEventListener('change', (e) => {
+  if (isOverlayEvent(e)) return;
   const raw = e.target;
   if (!raw) return;
   const tag = (raw.tagName || '').toUpperCase();
@@ -314,5 +341,6 @@ document.addEventListener('change', (e) => {
 }, true);
 
 document.addEventListener('submit', (e) => {
+  if (isOverlayEvent(e)) return;
   pushEvent('submit', semanticTarget(e.target));
 }, true);

@@ -62,6 +62,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.action === 'removeEvent') {
+    enqueue(async () => {
+      const result = await chrome.storage.local.get([EVENTS_KEY]);
+      const events = (result[EVENTS_KEY] || []).filter((e) => e && e.id !== msg.eventId);
+      await chrome.storage.local.set({ [EVENTS_KEY]: events });
+    }).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  if (msg.action === 'openEditor') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('editor/editor.html') });
+    return false;
+  }
+
   if (msg.action === 'getState') {
     enqueue(async () => {
       await ensureInit();
