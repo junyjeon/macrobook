@@ -17,8 +17,41 @@ async function ensureInit() {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => { ensureInit(); });
-chrome.runtime.onStartup.addListener(() => { ensureInit(); });
+/**
+ * Toolbar badge — surfaces the recording state at the browser level so
+ * the user knows a tab is mid-capture even when its overlay is offscreen
+ * (different tab focused, popup closed). Empty string clears the badge.
+ */
+function updateBadge(isRecording) {
+  try {
+    chrome.action.setBadgeText({ text: isRecording ? 'REC' : '' });
+    if (isRecording) {
+      chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
+    }
+  } catch (_) {
+    // chrome.action unavailable in some contexts (e.g. early SW boot)
+  }
+}
+
+async function syncBadgeFromStorage() {
+  const r = await chrome.storage.local.get([STATE_KEY]);
+  updateBadge(!!r[STATE_KEY]);
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  ensureInit().then(syncBadgeFromStorage);
+});
+chrome.runtime.onStartup.addListener(() => {
+  ensureInit().then(syncBadgeFromStorage);
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (changes[STATE_KEY]) updateBadge(!!changes[STATE_KEY].newValue);
+});
+
+// Initial sync — service worker may wake up mid-session with state already set
+syncBadgeFromStorage().catch(() => {});
 
 /**
  * Serialized write queue.

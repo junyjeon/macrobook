@@ -23,6 +23,44 @@ function genId() {
 }
 
 /**
+ * Brief red outline on the captured element so the user can visually
+ * verify what got recorded — answers "did it catch the right thing?"
+ * without opening the overlay. data-macrobook keeps content.js's own
+ * listeners from re-capturing this transient node.
+ */
+function highlightCapture(el) {
+  if (!el || typeof el.getBoundingClientRect !== 'function') return;
+  const rect = el.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) return;
+
+  const flash = document.createElement('div');
+  flash.setAttribute('data-macrobook', 'highlight');
+  flash.style.cssText = [
+    'position: fixed',
+    `top: ${rect.top}px`,
+    `left: ${rect.left}px`,
+    `width: ${rect.width}px`,
+    `height: ${rect.height}px`,
+    'border: 2px solid #ef4444',
+    'background: rgba(239, 68, 68, 0.12)',
+    'border-radius: 3px',
+    'pointer-events: none',
+    'z-index: 2147483646',
+    'opacity: 1',
+    'transition: opacity 0.35s ease-out, transform 0.35s ease-out',
+    'box-sizing: border-box'
+  ].join(';');
+  document.documentElement.appendChild(flash);
+
+  requestAnimationFrame(() => {
+    flash.style.opacity = '0';
+    flash.style.transform = 'scale(1.04)';
+  });
+
+  setTimeout(() => flash.remove(), 450);
+}
+
+/**
  * True when the event originated inside the overlay widget so we don't
  * record our own UI clicks (composedPath crosses closed shadow roots,
  * surfacing the host element with the data-macrobook attribute).
@@ -295,10 +333,11 @@ function pushEvent(type, element, extras = {}) {
   if (navigated) {
     safeSend({
       action: 'recordEvent',
-      event: { type: 'navigate', timestamp: Date.now(), url: location.href, from: lastUrl }
+      event: { id: genId(), type: 'navigate', timestamp: Date.now(), url: location.href, from: lastUrl }
     });
     lastUrl = location.href;
   }
+  if (element) highlightCapture(element);
   safeSend({
     action: 'recordEvent',
     event: {
